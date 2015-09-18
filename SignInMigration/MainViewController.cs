@@ -13,7 +13,7 @@ namespace SignInMigration
 {
     public partial class MainViewController : DialogViewController, ISignInDelegate, ISignInUIDelegate
     {
-        StringElement button;
+        SignInButtonElement signinButton;
         StringElement status;
 
         public MainViewController () : base (UITableViewStyle.Grouped, null)
@@ -24,19 +24,21 @@ namespace SignInMigration
             // Automatically sign in the user.
             SignIn.SharedInstance.SignInUserSilently ();
 
-            status = new StringElement ("Not Signed In");
-            button = new StringElement ("Sign In", () => {
+            status = new StringElement ("Not Signed In", () => {
+                // Sign out
+                SignIn.SharedInstance.SignOutUser ();
 
-                if (button.Caption == "Sign In")
-                    SignIn.SharedInstance.SignInUser ();
-                else
-                    SignIn.SharedInstance.SignOutUser ();
+                // Clear signed in app state
+                currentAuth = null;
+                Root[1].Clear ();
+                ToggleAuthUI ();
             });
+            signinButton = new SignInButtonElement ();
 
             Root = new RootElement ("Sign In Migration") {
                 new Section {
+                    signinButton,
                     status,
-                    button,
                 },
                 new Section {
                 },
@@ -67,10 +69,18 @@ namespace SignInMigration
                 // Start fetching the signed in user's info
                 GetUserInfo ();
 
-                status.Caption = string.Format ("Signed in user: {0}", user.Profile.Name);
+                status.Caption = string.Format ("{0} (Tap to Sign Out)", user.Profile.Name);
                 
                 ToggleAuthUI ();
             }
+        }
+
+        [Export ("signIn:didDisconnectWithUser:withError:")]
+        public virtual void DidDisconnect (SignIn signIn, GoogleUser user, NSError error)
+        {
+            currentAuth = null;
+            Root [1].Clear ();
+            ToggleAuthUI ();
         }
 
         void ToggleAuthUI ()
@@ -78,10 +88,10 @@ namespace SignInMigration
             if (SignIn.SharedInstance.CurrentUser == null || SignIn.SharedInstance.CurrentUser.Authentication == null) {
                 // Not signed in
                 status.Caption = "Not Signed In";
-                button.Caption = "Sign In";
+                signinButton.Enabled = true;
             } else {
                 // Signed in
-                button.Caption = "Sign Out";
+                signinButton.Enabled = false;
             }
         }
 
